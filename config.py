@@ -52,16 +52,20 @@ class Config:
     webhook_path: str
     webhook_secret: str
     port: int
+    database_url: str | None
 
     @property
     def webhook_url(self) -> str:
         return f"{self.base_url.rstrip('/')}{self.webhook_path}"
 
+    @property
+    def scheduler_enabled(self) -> bool:
+        return bool(self.database_url)
+
 
 def load_config() -> Config:
     token = required("BOT_TOKEN")
 
-    # Render sets this automatically for Web Services.
     base_url = (
         os.getenv("RENDER_EXTERNAL_URL", "").strip()
         or os.getenv("PUBLIC_BASE_URL", "").strip()
@@ -72,8 +76,6 @@ def load_config() -> Config:
             "For local webhook testing, set PUBLIC_BASE_URL."
         )
 
-    # Telegram webhook secret tokens allow A-Z, a-z, 0-9, _ and -.
-    # A SHA-256 hex digest is valid and avoids another secret the user must configure.
     webhook_secret = hashlib.sha256(token.encode("utf-8")).hexdigest()
 
     return Config(
@@ -84,4 +86,5 @@ def load_config() -> Config:
         webhook_path="/telegram/webhook",
         webhook_secret=webhook_secret,
         port=int(os.getenv("PORT", "10000")),
+        database_url=os.getenv("DATABASE_URL", "").strip() or None,
     )
