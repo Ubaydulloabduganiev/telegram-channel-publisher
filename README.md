@@ -1,123 +1,128 @@
-# Telegram Channel Publisher — Render Edition
+# Telegram Channel Publisher — Render + Scheduler
 
-A private admin Telegram bot for publishing photo/video posts with captions to a Telegram channel. This edition is designed for Render Web Services and uses Telegram webhooks instead of long polling.
+Telegram kanaliga rasm/video postlarini yuborish, ko'rib chiqish va oldindan
+rejalashtirish uchun bot.
 
-## Features
+## Asosiy imkoniyatlar
 
-- Photo + caption publishing
-- Video + caption publishing
-- Media can be sent without a caption and edited before publishing
-- Private preview before anything is sent to the channel
-- Publish / Edit caption / Cancel buttons
-- Telegram-native caption entities and formatting are preserved
-- Reuses Telegram `file_id` values instead of downloading and re-uploading media
-- Admin-only access, with support for multiple admins
-- `/status` checks the webhook and channel posting permission
-- `/myid` shows your Telegram user ID
-- Health endpoint for Render
-- Automatically registers the Telegram webhook using Render's `RENDER_EXTERNAL_URL`
-- Webhook requests are protected with Telegram's `secret_token`
-- No local SQLite dependency for the normal preview → edit → publish flow
+- Bot interfeysi to'liq o'zbek tilida.
+- Rasm + caption.
+- Video + caption.
+- Telegram formatlash elementlarini saqlaydi.
+- Postni avval preview qiladi.
+- `✅ Hozir joylash`.
+- `🗓 Vaqtga rejalashtirish`.
+- `✏️ Matnni tahrirlash`.
+- `🗑 Bekor qilish`.
+- Postlarni 31 kun oldindan rejalashtirish.
+- Vaqt zonasi: `Asia/Tashkent` (UTC+5).
+- `/reja` orqali yaqin rejalashtirilgan postlarni ko'rish.
+- Rejadagi postni bekor qilish.
+- PostgreSQL da persistent saqlash.
+- Render Cron worker orqali avtomatik jo'natish.
+- Xato bo'lsa 5 martagacha avtomatik qayta urinish.
+- Rejalashtirilgan post joylanganda admin Telegramiga tasdiq yuborish.
+- Webhook rejimi — Render Web Service uchun.
 
-## Why this version is stateless
+## Scheduler qanday ishlaydi?
 
-Render free Web Services use an ephemeral local filesystem. To avoid losing draft data after a restart or redeploy, the Telegram preview message itself acts as the draft. Caption editing is linked back to the preview message without requiring a local database.
+1. Botga rasm/video yuborasiz.
+2. Bot Telegram `file_id`, caption va vaqtni PostgreSQL bazasiga yozadi.
+3. Siz Toshkent vaqti bilan sana/vaqt kiritasiz.
+4. Render Cron Job har daqiqada `scheduler_worker.py` ni ishga tushiradi.
+5. Vaqti kelgan postlar Telegram kanaliga avtomatik yuboriladi.
 
-## Deploy to Render
-
-### 1. Create the Telegram bot
-
-1. Open `@BotFather` in Telegram.
-2. Send `/newbot`.
-3. Create the bot and copy its token.
-4. Keep the token private.
-
-### 2. Add the bot to your channel
-
-Open your Telegram channel and go to:
-
-**Channel → Administrators → Add Administrator**
-
-Add the bot and enable permission to **Post Messages**.
-
-### 3. Configure Render
-
-This repository includes `render.yaml`, so the easiest route is a Render Blueprint:
-
-1. Sign in to Render.
-2. Choose **New → Blueprint**.
-3. Connect this GitHub repository.
-4. Render detects `render.yaml`.
-5. Add these environment variables when Render asks for them:
-
-```text
-BOT_TOKEN=your_botfather_token
-CHANNEL_ID=@your_channel_username
-ADMIN_IDS=your_telegram_user_id
-```
-
-For multiple admins:
-
-```text
-ADMIN_IDS=123456789,987654321
-```
-
-For a private Telegram channel, `CHANNEL_ID` may be a numeric channel ID such as:
-
-```text
--1001234567890
-```
-
-Do not commit a real `.env` file or your real token. `.env` is ignored by Git.
-
-### 4. Test after deployment
-
-Open the bot and send:
-
-```text
-/status
-```
-
-You want the bot to report that the webhook and channel posting permission are valid.
-
-Then send a photo or video with its caption. The bot creates a preview. Press:
-
-```text
-✅ Publish to channel
-```
-
-Nothing is posted to the actual channel until you press Publish.
-
-## Render endpoints
-
-- `/` — basic running message
-- `/health` — JSON health check used by Render
-- `/telegram/webhook` — Telegram webhook endpoint
+Bot media faylning o'zini Render diskida saqlamaydi. Telegram `file_id` qayta ishlatiladi.
 
 ## Environment variables
 
-| Variable | Required | Purpose |
-| --- | --- | --- |
-| `BOT_TOKEN` | Yes | Token from `@BotFather` |
-| `CHANNEL_ID` | Yes | Target Telegram channel username or numeric ID |
-| `ADMIN_IDS` | Yes | Comma-separated Telegram user IDs allowed to control the bot |
-| `RENDER_EXTERNAL_URL` | Automatic on Render | Public Render URL used for webhook registration |
-| `PUBLIC_BASE_URL` | Local testing only | Optional public URL when testing outside Render |
-| `PORT` | Automatic on Render | Port used by the web service |
+Web Service:
 
-## Commands
+```env
+BOT_TOKEN=...
+CHANNEL_ID=@channel
+ADMIN_IDS=123456789
+DATABASE_URL=postgresql://...
+```
 
-- `/start` — bot instructions
-- `/status` — check webhook and channel permissions
-- `/myid` — show your Telegram user ID
+Cron Job:
 
-## Current limitation
+```env
+BOT_TOKEN=...
+CHANNEL_ID=@channel
+DATABASE_URL=postgresql://...
+```
 
-Telegram media albums are deliberately rejected. The current build supports one photo or one video per post so an album cannot accidentally be split into separate channel posts.
+## Render Web Service
 
-## Security
+Build:
 
-- Never commit your real bot token.
-- Keep `.env` out of GitHub.
-- Limit `ADMIN_IDS` to trusted Telegram accounts.
-- The real secrets should be stored only in Render Environment Variables.
+```text
+pip install -r requirements.txt
+```
+
+Start:
+
+```text
+python app.py
+```
+
+Health:
+
+```text
+/health
+```
+
+## Render Cron Job
+
+Repository shu repo.
+
+Build command:
+
+```text
+pip install -r requirements.txt
+```
+
+Command:
+
+```text
+python scheduler_worker.py
+```
+
+Schedule:
+
+```text
+* * * * *
+```
+
+Render cron expressions UTC da ishlaydi, lekin bu cron har daqiqada ishlagani uchun
+bot ichida saqlangan UTC vaqt bilan postlarni topadi. Foydalanuvchi esa sanani
+Toshkent vaqti bilan kiritadi.
+
+## Sana formati
+
+```text
+25.08.2026 18:30
+```
+
+yoki joriy yil uchun:
+
+```text
+25.08 18:30
+```
+
+Eng uzoq muddat: 31 kun.
+
+## Buyruqlar
+
+- `/start` — yordam
+- `/reja` — navbatdagi rejalashtirilgan postlar
+- `/status` — webhook, kanal va scheduler holati
+- `/myid` — Telegram ID
+
+## Muhim: Render persistence
+
+Scheduler uchun local SQLite ishlatilmaydi. Render Web Service fayl tizimi ephemeral
+bo'lgani uchun PostgreSQL kerak.
+
+Productionda uzoq muddatli scheduler uchun muddati tugamaydigan persistent PostgreSQL ishlating.
